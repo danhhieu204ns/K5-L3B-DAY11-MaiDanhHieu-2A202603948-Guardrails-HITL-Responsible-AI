@@ -33,6 +33,7 @@ except ImportError:
 PROVIDER_OPENAI = "openai"
 PROVIDER_GEMINI = "gemini"
 PROVIDER_OPENROUTER = "openrouter"
+PROVIDER_LIQUID = "liquid"
 
 # --- Blue Team (LOCKED) ---
 BLUE_PROVIDER = PROVIDER_OPENROUTER
@@ -100,12 +101,14 @@ except FileNotFoundError:
 # ---------------------------------------------------------------------------
 
 def get_blue_provider() -> str:
-    return BLUE_PROVIDER
+    provider = os.environ.get("BLUE_PROVIDER", BLUE_PROVIDER).strip().lower()
+    if provider not in {PROVIDER_OPENROUTER, PROVIDER_LIQUID}:
+        raise ValueError("BLUE_PROVIDER must be openrouter or liquid")
+    return provider
 
 
 def get_blue_model() -> str:
-    # Hard-locked; env cannot override for the graded Blue Team path.
-    return BLUE_MODEL
+    return "lfm3-1.7b" if get_blue_provider() == PROVIDER_LIQUID else BLUE_MODEL
 
 
 def get_openrouter_api_key() -> str:
@@ -113,7 +116,12 @@ def get_openrouter_api_key() -> str:
 
 
 def blue_client_kwargs() -> dict:
-    """OpenAI SDK kwargs pointing at OpenRouter (Blue Team only)."""
+    """OpenAI-compatible client for the selected Blue route."""
+    if get_blue_provider() == PROVIDER_LIQUID:
+        return {
+            "api_key": os.environ.get("LIQUID_API_KEY", "").strip() or None,
+            "base_url": "https://api.liquid.ai/openai/v1",
+        }
     return {
         "api_key": get_openrouter_api_key() or None,
         "base_url": (
@@ -236,11 +244,12 @@ def is_harder_model() -> bool:
 
 def setup_api_key():
     """Ensure keys for Blue (OpenRouter) + Red / Red Advance (OpenAI or Gemini)."""
-    if not get_openrouter_api_key():
-        os.environ["OPENROUTER_API_KEY"] = input(
-            "Enter OpenRouter API Key (Blue): "
-        ).strip()
-    print(f"Blue  — {blue_provider_label()}  [LOCKED]")
+    if get_blue_provider() == PROVIDER_LIQUID:
+        if not os.environ.get("LIQUID_API_KEY", "").strip():
+            os.environ["LIQUID_API_KEY"] = input("Enter Liquid API Key (Blue): ").strip()
+    elif not get_openrouter_api_key():
+        os.environ["OPENROUTER_API_KEY"] = input("Enter OpenRouter API Key (Blue): ").strip()
+    print(f"Blue  — {blue_provider_label()}")
 
     red = get_red_provider()
     model = get_red_model()

@@ -62,15 +62,24 @@ class OpenAIRunner:
             return block_msg
 
         client = self._client()
-        completion = client.chat.completions.create(
-            model=self.model,
-            messages=[
+        request = {
+            "model": self.model,
+            "messages": [
                 {"role": "system", "content": agent.instruction},
                 {"role": "user", "content": user_message},
             ],
-            temperature=self.temperature,
-        )
-        text = (completion.choices[0].message.content or "").strip()
+            "temperature": self.temperature,
+        }
+        if self.provider in {"openrouter", "liquid"}:
+            request["max_tokens"] = 512
+        completion = client.chat.completions.create(**request)
+        choice = completion.choices[0]
+        text = (choice.message.content or "").strip()
+        if not text:
+            raise RuntimeError(
+                f"Model returned empty content (finish_reason={choice.finish_reason!r}, "
+                f"model={self.model})"
+            )
 
         for hook in self.output_hooks:
             text = hook(text)
@@ -191,7 +200,7 @@ def create_blue_pair(
     output_hooks: list | None = None,
     temperature: float = 0.4,
 ) -> tuple[OpenAIAgent, OpenAIRunner]:
-    """Blue Team — always OpenRouter liquid/lfm-3-1.7b:free."""
+    """Blue Team — selected OpenRouter or direct Liquid route."""
     return _make_pair(
         name=name,
         instruction=instruction,
