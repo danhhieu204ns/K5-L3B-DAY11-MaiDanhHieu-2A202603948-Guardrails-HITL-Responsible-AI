@@ -22,6 +22,7 @@ from core.config import (
     DEMO_SECRET_NOTE,
     red_uses_openai_sdk,
     red_uses_gemini,
+    red_uses_anthropic,
     red_provider_label,
     blue_provider_label,
     get_red_model_default,
@@ -59,10 +60,11 @@ PROTECTED_INSTRUCTION = BLUE_INSTRUCTION
 def create_red_agent_default():
     """Red — NO guardrails. Model mềm cố định (4o-mini / 3.5-flash)."""
     soft = get_red_model_default()
-    if red_uses_openai_sdk():
-        from core.openai_runtime import create_openai_pair
+    if red_uses_openai_sdk() or red_uses_anthropic():
+        from core.openai_runtime import create_anthropic_pair, create_openai_pair
 
-        agent, runner = create_openai_pair(
+        factory = create_anthropic_pair if red_uses_anthropic() else create_openai_pair
+        agent, runner = factory(
             name="red_agent_default",
             instruction=RED_DEFAULT_INSTRUCTION,
             app_name="red_agent_default",

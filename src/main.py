@@ -92,22 +92,26 @@ async def part4_attacks():
 
     from agents.agent import create_red_agent_default, test_agent
     from agents.guards_agent import create_red_agent_advance
-    from attacks.attacks import run_attacks, save_attack_results
+    from attacks.attacks import run_attacks, save_attack_results, write_run_attack_json
 
     red_default, red_default_runner = create_red_agent_default()
     await test_agent(red_default, red_default_runner)
 
     print("\n--- Attacks on Red ---")
     unsafe_results = await run_attacks(
-        red_default, red_default_runner, target_name="red_default"
+        red_default, red_default_runner, target_name="red_default",
+        save_json=False, fail_on_error=True,
     )
 
     print("\n--- Attacks on Red Advance (bonus B2 tối đa +10 nếu LEAKED; chọn 1) ---")
     red_advance, red_advance_runner = create_red_agent_advance()
     guards_results = await run_attacks(
-        red_advance, red_advance_runner, target_name="red_advance"
+        red_advance, red_advance_runner, target_name="red_advance",
+        save_json=False, fail_on_error=True,
     )
 
+    write_run_attack_json(unsafe_results, target_name="red_default")
+    write_run_attack_json(guards_results, target_name="red_advance")
     save_attack_results(
         unsafe_results=unsafe_results,
         guards_results=guards_results,

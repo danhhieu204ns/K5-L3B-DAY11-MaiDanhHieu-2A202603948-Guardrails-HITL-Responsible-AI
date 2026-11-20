@@ -37,6 +37,7 @@ from agents.security_boundary import contains_secret, normalize_for_security
 from core.config import (
     DEMO_SECRETS,
     PROVIDER_GEMINI,
+    PROVIDER_ANTHROPIC,
     get_red_model,
     get_red_provider,
 )
@@ -229,6 +230,13 @@ def require_nemo():
 
 
 def _model_entry(provider: str, model: str) -> dict:
+    if provider == PROVIDER_ANTHROPIC:
+        entry = {"type": "main", "engine": "anthropic", "model": model,
+                 "api_key_env_var": "ANTHROPIC_API_KEY"}
+        base_url = os.environ.get("ANTHROPIC_BASE_URL", "").strip()
+        if base_url:
+            entry["parameters"] = {"base_url": base_url}
+        return entry
     if provider == PROVIDER_GEMINI:
         return {
             "type": "main",
@@ -324,6 +332,8 @@ class NemoRailsGuard:
     """Bọc ``LLMRails`` — chỉ chạy input/output rails, không sinh câu trả lời."""
 
     def __init__(self, config: Any = None, *, llm: Any = None, verbose: bool = False):
+        if llm is None and get_red_provider() == PROVIDER_ANTHROPIC:
+            os.environ["NEMOGUARDRAILS_LLM_FRAMEWORK"] = "langchain"
         nemoguardrails = require_nemo()
         from nemoguardrails import LLMRails
 

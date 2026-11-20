@@ -18,6 +18,7 @@ from core.config import (
     get_blue_provider,
     blue_client_kwargs,
     red_openai_client_kwargs,
+    PROVIDER_ANTHROPIC,
 )
 
 
@@ -61,6 +62,33 @@ class OpenAIRunner:
         if block_msg is not None:
             return block_msg
 
+        text = self._generate(agent, user_message)
+
+        for hook in self.output_hooks:
+            text = hook(text)
+
+        text = await self._run_output_plugins(text)
+        return text
+
+    def _generate(self, agent: OpenAIAgent, user_message: str) -> str:
+        if self.provider == PROVIDER_ANTHROPIC:
+            from anthropic import Anthropic
+            import os
+
+            completion = Anthropic(
+                timeout=30.0,
+                base_url=os.environ.get("ANTHROPIC_BASE_URL") or None,
+            ).messages.create(
+                model=self.model,
+                system=agent.instruction,
+                messages=[{"role": "user", "content": user_message}],
+                max_tokens=1024,
+            )
+            text = "".join(block.text for block in completion.content if getattr(block, "type", None) == "text").strip()
+            if not text:
+                raise RuntimeError(f"Model returned empty content (stop_reason={completion.stop_reason!r}, model={self.model})")
+            return text
+
         client = self._client()
         request = {
             "model": self.model,
@@ -81,11 +109,8 @@ class OpenAIRunner:
                 f"model={self.model})"
             )
 
-        for hook in self.output_hooks:
-            text = hook(text)
-
-        text = await self._run_output_plugins(text)
         return text
+
 
     async def _run_input_plugins(self, user_message: str) -> str | None:
         if not self.plugins:
@@ -226,16 +251,25 @@ def create_openai_pair(
     temperature: float = 0.4,
     model: str | None = None,
 ) -> tuple[OpenAIAgent, OpenAIRunner]:
-    """Red Team OpenAI path (default = soft model; advance may pass harder)."""
+    """OpenAI Red Team pair (kept for existing callers and tests)."""
     return _make_pair(
         name=name,
         instruction=instruction,
         app_name=app_name,
         model=model or get_red_model(),
-        provider=get_red_provider(),
+        provider="openai",
         client_kwargs=red_openai_client_kwargs(),
         plugins=plugins,
         input_hooks=input_hooks,
         output_hooks=output_hooks,
         temperature=temperature,
+    )
+
+
+def create_anthropic_pair(**kwargs) -> tuple[OpenAIAgent, OpenAIRunner]:
+    """Anthropic Red Team pair with the same plugin pipeline."""
+    return _make_pair(
+        provider=PROVIDER_ANTHROPIC,
+        client_kwargs={},
+        **kwargs,
     )

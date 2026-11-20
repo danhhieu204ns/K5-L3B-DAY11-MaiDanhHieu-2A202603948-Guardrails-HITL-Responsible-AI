@@ -29,9 +29,17 @@ try:
 except ImportError:
     pass
 
+# Anthropic SDK and NeMo's LangChain adapter both read ANTHROPIC_API_KEY.
+# Accept the user's CLAUDE_API_KEY without requiring a duplicate secret in .env.
+if not os.environ.get("ANTHROPIC_API_KEY") and os.environ.get("CLAUDE_API_KEY"):
+    os.environ["ANTHROPIC_API_KEY"] = os.environ["CLAUDE_API_KEY"]
+if not os.environ.get("ANTHROPIC_BASE_URL") and os.environ.get("CLAUDE_BASE_URL"):
+    os.environ["ANTHROPIC_BASE_URL"] = os.environ["CLAUDE_BASE_URL"]
+
 # --- Providers ---
 PROVIDER_OPENAI = "openai"
 PROVIDER_GEMINI = "gemini"
+PROVIDER_ANTHROPIC = "anthropic"
 PROVIDER_OPENROUTER = "openrouter"
 PROVIDER_LIQUID = "liquid"
 
@@ -44,6 +52,7 @@ DEFAULT_OPENROUTER_MODEL = BLUE_MODEL  # alias
 # --- Red Team ---
 DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
 DEFAULT_GEMINI_MODEL = "gemini-3.5-flash"
+DEFAULT_ANTHROPIC_MODEL = "claude-haiku-4-5-20251001"
 # Model khó — tuỳ chọn (không phải tên agent; không bắt buộc để có B1/B2)
 HARD_OPENAI_MODEL = "gpt-5.6-luna"
 HARD_GEMINI_MODEL = "gemini-3.8-flash"
@@ -147,6 +156,8 @@ def get_red_provider() -> str:
     ).strip().lower()
     if raw in {"gemini", "google", "adk"}:
         return PROVIDER_GEMINI
+    if raw in {"anthropic", "claude"}:
+        return PROVIDER_ANTHROPIC
     return PROVIDER_OPENAI
 
 
@@ -157,6 +168,8 @@ def get_red_model() -> str:
             os.environ.get("GEMINI_MODEL", DEFAULT_GEMINI_MODEL).strip()
             or DEFAULT_GEMINI_MODEL
         )
+    if get_red_provider() == PROVIDER_ANTHROPIC:
+        return os.environ.get("ANTHROPIC_MODEL", DEFAULT_ANTHROPIC_MODEL).strip() or DEFAULT_ANTHROPIC_MODEL
     return (
         os.environ.get("OPENAI_MODEL", DEFAULT_OPENAI_MODEL).strip()
         or DEFAULT_OPENAI_MODEL
@@ -193,6 +206,10 @@ def red_uses_openai_sdk() -> bool:
 
 def red_uses_gemini() -> bool:
     return get_red_provider() == PROVIDER_GEMINI
+
+
+def red_uses_anthropic() -> bool:
+    return get_red_provider() == PROVIDER_ANTHROPIC
 
 
 # ---------------------------------------------------------------------------
@@ -258,6 +275,11 @@ def setup_api_key():
             os.environ["GOOGLE_API_KEY"] = input("Enter Google API Key (Red): ").strip()
         os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "0"
         print(f"Red / Red Advance  — gemini:{model}")
+    elif red == PROVIDER_ANTHROPIC:
+        if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
+            raise RuntimeError("Set CLAUDE_API_KEY or ANTHROPIC_API_KEY in .env or environment before CP4")
+        os.environ["NEMOGUARDRAILS_LLM_FRAMEWORK"] = "langchain"
+        print(f"Red / Red Advance: anthropic:{model}")
     else:
         if not get_openai_api_key():
             os.environ["OPENAI_API_KEY"] = input("Enter OpenAI API Key (Red): ").strip()

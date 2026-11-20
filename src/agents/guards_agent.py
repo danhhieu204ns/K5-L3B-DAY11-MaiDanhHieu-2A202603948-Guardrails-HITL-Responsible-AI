@@ -370,6 +370,7 @@ def create_red_agent_advance():
     from core.config import (
         red_uses_openai_sdk,
         red_uses_gemini,
+        red_uses_anthropic,
         red_provider_label,
         get_red_model,
     )
@@ -382,10 +383,11 @@ def create_red_agent_advance():
         f"[Red:{red_provider_label('advance')}]"
     )
 
-    if red_uses_openai_sdk():
-        from core.openai_runtime import create_openai_pair
+    if red_uses_openai_sdk() or red_uses_anthropic():
+        from core.openai_runtime import create_anthropic_pair, create_openai_pair
 
-        agent, runner = create_openai_pair(
+        factory = create_anthropic_pair if red_uses_anthropic() else create_openai_pair
+        agent, runner = factory(
             name="red_agent_advance",
             instruction=RED_ADVANCE_INSTRUCTION,
             app_name="red_agent_advance",
